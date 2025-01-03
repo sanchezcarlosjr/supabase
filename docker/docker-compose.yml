@@ -480,5 +480,65 @@ services:
     volumes:
       - ./volumes/pooler/pooler.exs:/etc/pooler/pooler.exs:ro
 
+  emailengine:
+        restart: unless-stopped
+        image: postalsys/emailengine:latest
+        networks:
+            - no-internet
+            - default
+        depends_on:
+            - redis
+        environment:
+            # Configuration to EmailEngine can be passed via environment variables
+            # For full list see https://github.com/postalsys/emailengine#config-mapping
+
+            # Settings to write to v1/settings on startup (https://api.emailengine.app/#operation/postV1Settings)
+            # The following value is a YAML block scalar string, so make it sure it is properly indented
+            # This configuration enables SMTP server for local submission
+            EENGINE_SETTINGS: >
+                {
+                    "smtpServerEnabled": true,
+                    "smtpServerPort": 2525,
+                    "smtpServerHost": "0.0.0.0",
+                    "smtpServerAuthEnabled": true,
+                    "smtpServerPassword": "passw0rd"
+                }
+
+            # Encryption secret
+            EENGINE_SECRET: ${EENGINE_SECRET}
+            # Database connection URL
+            EENGINE_REDIS: 'redis://redis:6379/2'
+        logging:
+            driver: 'json-file'
+            options:
+                max-size: '200m'
+                max-file: '5'
+
+  redis:
+        image: redis:alpine
+        restart: unless-stopped
+        networks:
+          - no-internet
+        volumes:
+            - ./volumes/redis/data:/etc/vector/vector.yml:z
+   
+  # Add nginx to serve static html
+  nginx:
+    container_name: supabase-nginx
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./volumes/html:/usr/share/nginx/html:ro
+    networks:
+      - default
+
+
+networks:
+  no-internet:
+    internal: true
+    driver: bridge
+  default:
+    driver: bridge
+
 volumes:
   db-config:
