@@ -15,6 +15,7 @@ import {
   Command_Shadcn_,
   CriticalIcon,
   Input,
+  Label_Shadcn_,
   PopoverContent_Shadcn_,
   PopoverTrigger_Shadcn_,
   Popover_Shadcn_,
@@ -48,6 +49,7 @@ interface ColumnTypeProps {
   error?: any
   disabled?: boolean
   showLabel?: boolean
+  layout?: 'horizontal' | 'vertical'
   description?: ReactNode
   showRecommendation?: boolean
   onOptionSelect: (value: string) => void
@@ -55,20 +57,20 @@ interface ColumnTypeProps {
 
 const ColumnType = ({
   value,
+  className,
   enumTypes = [],
-  error,
   disabled = false,
   showLabel = true,
+  layout = 'horizontal',
   description,
   showRecommendation = false,
   onOptionSelect = noop,
 }: ColumnTypeProps) => {
+  const [open, setOpen] = useState(false)
   // @ts-ignore
-  const availableTypes = POSTGRES_DATA_TYPES.concat(enumTypes.map((type) => type.name))
+  const availableTypes = POSTGRES_DATA_TYPES.concat(enumTypes.map((type) => type.format))
   const isAvailableType = value ? availableTypes.includes(value) : true
   const recommendation = RECOMMENDED_ALTERNATIVE_DATA_TYPE[value]
-  const [open, setOpen] = useState(false)
-  console.log({ availableTypes })
 
   const getOptionByName = (name: string) => {
     // handle built in types
@@ -76,7 +78,7 @@ const ColumnType = ({
     if (pgOption) return pgOption
 
     // handle custom enums
-    const enumType = enumTypes.find((type) => type.name === name)
+    const enumType = enumTypes.find((type) => type.format === name)
     return enumType ? { ...enumType, type: 'enum' } : undefined
   }
 
@@ -115,8 +117,8 @@ const ColumnType = ({
             readOnly
             disabled
             label={showLabel ? 'Type' : ''}
-            layout={showLabel ? 'horizontal' : undefined}
-            className="md:gap-x-0"
+            layout={showLabel ? layout : undefined}
+            className="md:gap-x-0 [&>div>div]:text-left"
             size="small"
             icon={inferIcon(POSTGRES_DATA_TYPE_OPTIONS.find((x) => x.name === value)?.type ?? '')}
             value={value}
@@ -183,7 +185,8 @@ const ColumnType = ({
   }
 
   return (
-    <div>
+    <div className={cn('flex flex-col gap-y-2', className)}>
+      {showLabel && <Label_Shadcn_ className="text-foreground-light">Type</Label_Shadcn_>}
       <Popover_Shadcn_ open={open} onOpenChange={setOpen}>
         <PopoverTrigger_Shadcn_ asChild>
           <Button
@@ -191,7 +194,7 @@ const ColumnType = ({
             role="combobox"
             size={'small'}
             aria-expanded={open}
-            className="w-full justify-between"
+            className={cn('w-full justify-between', !value && 'text-foreground-lighter')}
             iconRight={<ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />}
           >
             {value ? (
@@ -241,11 +244,14 @@ const ColumnType = ({
                   <>
                     <CommandItem_Shadcn_>Other types</CommandItem_Shadcn_>
                     <CommandGroup_Shadcn_>
-                      {enumTypes.map((option: any) => (
+                      {enumTypes.map((option) => (
                         <CommandItem_Shadcn_
-                          key={option.name}
-                          value={option.name}
-                          className={cn('relative', option.name === value ? 'bg-surface-200' : '')}
+                          key={option.format}
+                          value={option.format}
+                          className={cn(
+                            'relative',
+                            option.format === value ? 'bg-surface-200' : ''
+                          )}
                           onSelect={(value: string) => {
                             onOptionSelect(value)
                             setOpen(false)
@@ -255,14 +261,17 @@ const ColumnType = ({
                             <div>
                               <ListPlus size={16} className="text-foreground" strokeWidth={1.5} />
                             </div>
-                            <span className="text-foreground">{option.name}</span>
+                            <span className="text-foreground">{option.format}</span>
                             {option.comment !== undefined && (
-                              <span title={option.comment} className="text-foreground-lighter">
+                              <span
+                                title={option.comment ?? ''}
+                                className="text-foreground-lighter"
+                              >
                                 {option.comment}
                               </span>
                             )}
                             <span className="flex items-center gap-1.5">
-                              {option.name === value ? <Check size={13} /> : ''}
+                              {option.format === value ? <Check size={13} /> : ''}
                             </span>
                           </div>
                         </CommandItem_Shadcn_>
@@ -277,7 +286,7 @@ const ColumnType = ({
       </Popover_Shadcn_>
 
       {showRecommendation && recommendation !== undefined && (
-        <Alert_Shadcn_ variant="warning">
+        <Alert_Shadcn_ variant="warning" className="mt-2">
           <CriticalIcon />
           <AlertTitle_Shadcn_>
             {' '}

@@ -1,13 +1,13 @@
 import dayjs from 'dayjs'
-import { UIEvent } from 'react'
-import { Column } from 'react-data-grid'
 import { UserIcon } from 'lucide-react'
+import { UIEvent } from 'react'
+import { Column, useRowSelection } from 'react-data-grid'
 
-import { User } from 'data/auth/users-query'
+import { User } from 'data/auth/users-infinite-query'
 import { BASE_PATH } from 'lib/constants'
-import { ColumnConfiguration, USERS_TABLE_COLUMNS, UsersTableColumn } from './UsersV2'
-import { HeaderCell } from './UsersGridComponents'
-import { cn } from 'ui'
+import { Checkbox_Shadcn_, cn } from 'ui'
+import { HeaderCell, SelectHeaderCell } from './UsersGridComponents'
+import { ColumnConfiguration, USERS_TABLE_COLUMNS } from './UsersV2'
 
 const SUPPORTED_CSP_AVATAR_URLS = [
   'https://avatars.githubusercontent.com',
@@ -115,8 +115,23 @@ const phoneProviders = providers.phone.map((x) => {
   return key
 })
 
+function toPrettyJsonString(value: unknown): string | undefined {
+  if (!value) return undefined
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value.map((item) => toPrettyJsonString(item)).join(' ')
+
+  try {
+    return JSON.stringify(value)
+  } catch (error) {
+    // ignore the error
+  }
+
+  return undefined
+}
+
 export function getDisplayName(user: User, fallback = '-'): string {
   const {
+    custom_claims,
     displayName,
     display_name,
     fullName,
@@ -132,16 +147,60 @@ export function getDisplayName(user: User, fallback = '-'): string {
     first_name,
   } = user.raw_user_meta_data ?? {}
 
-  const last = familyName || family_name || surname || lastName || last_name
-  const first = givenName || given_name || firstName || first_name
+  const {
+    displayName: ccDisplayName,
+    display_name: cc_display_name,
+    fullName: ccFullName,
+    full_name: cc_full_name,
+    familyName: ccFamilyName,
+    family_name: cc_family_name,
+    givenName: ccGivenName,
+    given_name: cc_given_name,
+    surname: ccSurname,
+    lastName: ccLastName,
+    last_name: cc_last_name,
+    firstName: ccFirstName,
+    first_name: cc_first_name,
+  } = custom_claims ?? {}
+
+  const last = toPrettyJsonString(
+    familyName ||
+      family_name ||
+      surname ||
+      lastName ||
+      last_name ||
+      ccFamilyName ||
+      cc_family_name ||
+      ccSurname ||
+      ccLastName ||
+      cc_last_name
+  )
+
+  const first = toPrettyJsonString(
+    givenName ||
+      given_name ||
+      firstName ||
+      first_name ||
+      ccGivenName ||
+      cc_given_name ||
+      ccFirstName ||
+      cc_first_name
+  )
 
   return (
-    displayName ||
-    display_name ||
-    fullName ||
-    full_name ||
-    (first && last && `${first} ${last}`) ||
-    fallback
+    toPrettyJsonString(
+      displayName ||
+        display_name ||
+        ccDisplayName ||
+        cc_display_name ||
+        fullName ||
+        full_name ||
+        ccFullName ||
+        cc_full_name ||
+        (first && last && `${first} ${last}`) ||
+        last ||
+        first
+    ) || fallback
   )
 }
 
@@ -170,9 +229,12 @@ export function getAvatarUrl(user: User): string | undefined {
     profile_url ||
     profileImageUrl ||
     profileImageURL ||
-    profile_image_url) as string | undefined
+    profile_image_url ||
+    '') as unknown
 
-  return SUPPORTED_CSP_AVATAR_URLS.some((x) => url?.startsWith(x)) ? url : undefined
+  if (typeof url !== 'string') return undefined
+  const isSupported = SUPPORTED_CSP_AVATAR_URLS.some((x) => url.startsWith(x))
+  return isSupported ? url : undefined
 }
 
 export const formatUserColumns = ({
@@ -200,10 +262,18 @@ export const formatUserColumns = ({
       minWidth: col.minWidth ?? 120,
       headerCellClass: 'z-50 outline-none !shadow-none',
       renderHeaderCell: () => {
+        // [Joshen] I'm on the fence to support "Select all" for users, as the results are infinitely paginated
+        // "Select all" wouldn't be an accurate representation if not all the pages have been fetched, but if decide
+        // to support - the component is ready as such: Just pass selectedUsers and allRowsSelected as props from parent
+        // <SelectHeaderCell selectedUsers={selectedUsers} allRowsSelected={allRowsSelected} />
         if (col.id === 'img') return undefined
         return <HeaderCell col={col} setSortByValue={setSortByValue} />
       },
       renderCell: ({ row }) => {
+        // This is actually a valid React component, so we can use hooks here
+        // eslint-disable-next-line react-hooks/rules-of-hooks
+        const [isRowSelected, onRowSelectionChange] = useRowSelection()
+
         const value = row?.[col.id]
         const user = users?.find((u) => u.id === row.id)
         const formattedValue =
@@ -216,7 +286,19 @@ export const formatUserColumns = ({
 
         if (col.id === 'img') {
           return (
-            <div className="flex items-center justify-center">
+            <div className="flex items-center justify-center gap-x-2">
+              <Checkbox_Shadcn_
+                checked={isRowSelected}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onRowSelectionChange({
+                    row,
+                    type: 'ROW',
+                    checked: !isRowSelected,
+                    isShiftClick: e.shiftKey,
+                  })
+                }}
+              />
               <div
                 className={cn(
                   'flex items-center justify-center w-6 h-6 rounded-full bg-center bg-cover bg-no-repeat',

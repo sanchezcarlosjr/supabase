@@ -14,7 +14,8 @@ import { useUserDeleteMutation } from 'data/auth/user-delete-mutation'
 import { useUserResetPasswordMutation } from 'data/auth/user-reset-password-mutation'
 import { useUserSendMagicLinkMutation } from 'data/auth/user-send-magic-link-mutation'
 import { useUserSendOTPMutation } from 'data/auth/user-send-otp-mutation'
-import { User } from 'data/auth/users-query'
+import { useUserUpdateMutation } from 'data/auth/user-update-mutation'
+import { User } from 'data/auth/users-infinite-query'
 import { useCheckPermissions } from 'hooks/misc/useCheckPermissions'
 import { BASE_PATH } from 'lib/constants'
 import { timeout } from 'lib/helpers'
@@ -22,11 +23,10 @@ import { Button, cn, Separator } from 'ui'
 import { Admonition } from 'ui-patterns/admonition'
 import ConfirmationModal from 'ui-patterns/Dialogs/ConfirmationModal'
 import { PROVIDERS_SCHEMAS } from '../AuthProvidersFormValidation'
-import { PANEL_PADDING } from './UserPanel'
-import { getDisplayName, providerIconMap } from './Users.utils'
 import { BanUserModal } from './BanUserModal'
-import { useUserUpdateMutation } from 'data/auth/user-update-mutation'
-import { useProjectApiQuery } from 'data/config/project-api-query'
+import { UserHeader } from './UserHeader'
+import { PANEL_PADDING } from './UserPanel'
+import { providerIconMap } from './Users.utils'
 
 const DATE_FORMAT = 'DD MMM, YYYY HH:mm'
 const CONTAINER_CLASS = cn(
@@ -41,11 +41,8 @@ interface UserOverviewProps {
 
 export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
   const { ref: projectRef } = useParams()
-  const displayName = getDisplayName(user)
-  const hasDisplayName = displayName !== '-'
   const isEmailAuth = user.email !== null
   const isPhoneAuth = user.phone !== null
-  const isAnonUser = user.is_anonymous
   const isBanned = user.banned_until !== null
 
   const providers = (user.raw_app_meta_data?.providers ?? []).map((provider: string) => {
@@ -60,6 +57,7 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
     }
   })
 
+  const canUpdateUser = useCheckPermissions(PermissionAction.AUTH_EXECUTE, '*')
   const canSendMagicLink = useCheckPermissions(PermissionAction.AUTH_EXECUTE, 'send_magic_link')
   const canSendRecovery = useCheckPermissions(PermissionAction.AUTH_EXECUTE, 'send_recovery')
   const canSendOtp = useCheckPermissions(PermissionAction.AUTH_EXECUTE, 'send_otp')
@@ -78,7 +76,7 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
   const [isDeleteFactorsModalOpen, setIsDeleteFactorsModalOpen] = useState(false)
 
   const { data } = useAuthConfigQuery({ projectRef })
-  const { data: apiData } = useProjectApiQuery({ projectRef })
+
   const mailerOtpExpiry = data?.MAILER_OTP_EXP ?? 0
   const minutes = Math.floor(mailerOtpExpiry / 60)
   const seconds = Math.floor(mailerOtpExpiry % 60)
@@ -134,7 +132,10 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
   const handleDelete = async () => {
     await timeout(200)
     if (!projectRef) return console.error('Project ref is required')
-    deleteUser({ projectRef, user })
+    if (user.id === undefined) {
+      return toast.error(`Failed to delete user: User ID not found`)
+    }
+    deleteUser({ projectRef, userId: user.id })
   }
 
   const handleDeleteFactors = async () => {
@@ -144,18 +145,13 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
   }
 
   const handleUnban = () => {
-    if (!apiData) {
-      return toast.error(`Failed to ban user: Error loading project config`)
-    } else if (user.id === undefined) {
+    if (projectRef === undefined) return console.error('Project ref is required')
+    if (user.id === undefined) {
       return toast.error(`Failed to ban user: User ID not found`)
     }
 
-    const { protocol, endpoint, serviceApiKey } = apiData.autoApiService
     updateUser({
       projectRef,
-      protocol,
-      endpoint,
-      serviceApiKey,
       userId: user.id,
       banDuration: 'none',
     })
@@ -171,54 +167,7 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
   return (
     <>
       <div>
-        <div className={cn(PANEL_PADDING)}>
-          {isPhoneAuth ? (
-            <div className="flex items-center gap-x-1">
-              <p>{user.phone}</p>
-              <CopyButton
-                iconOnly
-                type="text"
-                icon={<Copy />}
-                className="px-1"
-                text={user?.phone ?? ''}
-              />
-            </div>
-          ) : isAnonUser ? (
-            <>
-              <p>Anonymous user</p>
-              <div className="flex items-center gap-x-1">
-                <p className="text-foreground-light text-sm">{user.id}</p>
-                <CopyButton
-                  iconOnly
-                  type="text"
-                  icon={<Copy />}
-                  className="px-1"
-                  text={user?.id ?? ''}
-                />
-              </div>
-            </>
-          ) : (
-            <>
-              {hasDisplayName && <p>{displayName}</p>}
-              <div className="flex items-center gap-x-1">
-                <p
-                  className={cn(
-                    hasDisplayName ? 'text-foreground-light text-sm' : 'text-foreground'
-                  )}
-                >
-                  {user.email}
-                </p>
-                <CopyButton
-                  iconOnly
-                  type="text"
-                  icon={<Copy />}
-                  className="px-1"
-                  text={user?.email ?? ''}
-                />
-              </div>
-            </>
-          )}
-        </div>
+        <UserHeader user={user} />
 
         {isBanned ? (
           <Admonition
@@ -230,7 +179,7 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
           <Separator />
         )}
 
-        <div className={cn('flex flex-col', PANEL_PADDING)}>
+        <div className={cn('flex flex-col gap-1.5', PANEL_PADDING)}>
           <RowData property="User UID" value={user.id} />
           <RowData
             property="Created at"
@@ -263,13 +212,19 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
         <div className={cn('flex flex-col -space-y-1 !pt-0', PANEL_PADDING)}>
           {providers.map((provider) => {
             const providerMeta = PROVIDERS_SCHEMAS.find(
-              (x) => x.title.toLowerCase() === provider.name
+              (x) =>
+                x.title.toLowerCase() ===
+                (provider.name === 'linkedin' ? 'linkedin (oidc)' : provider.name)
             )
             const enabledProperty = Object.keys(providerMeta?.properties ?? {}).find((x) =>
               x.toLowerCase().endsWith('_enabled')
             )
             const providerName =
-              provider.name === 'email' ? 'email' : providerMeta?.title ?? provider.name
+              provider.name === 'email'
+                ? 'email'
+                : provider.name === 'linkedin'
+                  ? 'LinkedIn'
+                  : providerMeta?.title ?? provider.name
             const isActive = data?.[enabledProperty as keyof typeof data] ?? false
 
             return (
@@ -283,7 +238,7 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
                   />
                 )}
                 <div className="flex-grow mt-0.5">
-                  <p className="capitalize">{provider.name}</p>
+                  <p className="capitalize">{providerName}</p>
                   <p className="text-xs text-foreground-light">
                     Signed in with a {providerName} account via{' '}
                     {providerName === 'SAML' ? 'SSO' : 'OAuth'}
@@ -422,7 +377,7 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
             button={{
               icon: <Ban />,
               text: isBanned ? 'Unban user' : 'Ban user',
-              disabled: !canRemoveMFAFactors,
+              disabled: !canUpdateUser,
               onClick: () => {
                 if (isBanned) {
                   setIsUnbanModalOpen(true)
@@ -507,41 +462,44 @@ export const UserOverview = ({ user, onDeleteSuccess }: UserOverviewProps) => {
   )
 }
 
-const RowData = ({ property, value }: { property: string; value?: string | boolean }) => {
+export const RowData = ({ property, value }: { property: string; value?: string | boolean }) => {
   return (
-    <div className="flex items-center gap-x-2 group">
-      <p className="w-36 text-foreground-light text-sm">{property}</p>
-      {typeof value === 'boolean' ? (
-        <div className="h-[26px] flex items-center justify-center">
-          {value ? (
-            <div className="rounded-full w-4 h-4 dark:bg-white bg-black flex items-center justify-center">
-              <Check size={10} className="text-contrast" strokeWidth={4} />
-            </div>
-          ) : (
-            <div className="rounded-full w-4 h-4 dark:bg-white bg-black flex items-center justify-center">
-              <X size={10} className="text-contrast" strokeWidth={4} />
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="flex items-center gap-x-2 h-[26px]">
-          <p className="text-sm">{!value ? '-' : value}</p>
-          {!!value && (
-            <CopyButton
-              iconOnly
-              type="text"
-              icon={<Copy />}
-              className="transition opacity-0 group-hover:opacity-100 px-1"
-              text={value}
-            />
-          )}
-        </div>
-      )}
-    </div>
+    <>
+      <div className="flex items-center gap-x-2 group justify-between">
+        <p className=" text-foreground-lighter text-sm">{property}</p>
+        {typeof value === 'boolean' ? (
+          <div className="h-[26px] flex items-center justify-center min-w-[70px]">
+            {value ? (
+              <div className="rounded-full w-4 h-4 dark:bg-white bg-black flex items-center justify-center">
+                <Check size={10} className="text-contrast" strokeWidth={4} />
+              </div>
+            ) : (
+              <div className="rounded-full w-4 h-4 dark:bg-white bg-black flex items-center justify-center">
+                <X size={10} className="text-contrast" strokeWidth={4} />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center gap-x-2 h-[26px] font-mono min-w-[40px]">
+            <p className="text-sm">{!value ? '-' : value}</p>
+            {!!value && (
+              <CopyButton
+                iconOnly
+                type="text"
+                icon={<Copy />}
+                className="transition opacity-0 group-hover:opacity-100 px-1"
+                text={value}
+              />
+            )}
+          </div>
+        )}
+      </div>
+      <Separator />
+    </>
   )
 }
 
-const RowAction = ({
+export const RowAction = ({
   title,
   description,
   button,
@@ -564,6 +522,8 @@ const RowAction = ({
   }
   className?: string
 }) => {
+  const disabled = button?.disabled ?? false
+
   return (
     <div className={cn(CONTAINER_CLASS, className)}>
       <div>
@@ -578,11 +538,13 @@ const RowAction = ({
         icon={success ? <Check className="text-brand" /> : button.icon}
         loading={button.isLoading ?? false}
         onClick={button.onClick}
-        disabled={button?.disabled ?? false}
+        disabled={disabled}
         tooltip={{
           content: {
             side: 'bottom',
-            text: `You need additional permissions to ${button.text.toLowerCase()}`,
+            text: disabled
+              ? `You need additional permissions to ${button.text.toLowerCase()}`
+              : undefined,
           },
         }}
       >
