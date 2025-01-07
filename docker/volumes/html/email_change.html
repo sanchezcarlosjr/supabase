@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Confirmar Cambio de Correo</title>
+    <style>
+      /* Basic Reset */
+      body, table, td, p {
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        width: 100% !important;
+        height: 100%;
+        font-family: Arial, sans-serif;
+        background-color: #f6f6f6;
+        color: #333;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      /* Container */
+      .email-container {
+        max-width: 600px;
+        margin: 30px auto;
+        background-color: #ffffff;
+        border-radius: 5px;
+        overflow: hidden;
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      }
+      /* Header */
+      .header {
+        background-color: #007bff;
+        color: #ffffff;
+        text-align: center;
+        padding: 20px;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 24px;
+        font-weight: normal;
+      }
+      /* Body Content */
+      .content {
+        padding: 20px;
+      }
+      .content h2 {
+        margin-top: 0;
+        margin-bottom: 16px;
+        font-size: 20px;
+      }
+      .content p {
+        font-size: 16px;
+        line-height: 1.5;
+        margin-bottom: 1em;
+      }
+      .content a {
+        color: #007bff;
+        text-decoration: none;
+      }
+      .content a:hover {
+        text-decoration: underline;
+      }
+      /* Footer */
+      .footer {
+        font-size: 12px;
+        color: #777;
+        text-align: center;
+        padding: 20px;
+      }
+      /* Responsive Adjustments (Optional) */
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 100% !important;
+          margin: 0 auto;
+          border-radius: 0;
+        }
+        .content, .header, .footer {
+          padding: 15px !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <table class="email-container" role="presentation" cellpadding="0" cellspacing="0">
+      <!-- Header Section -->
+      <tr>
+        <td class="header">
+          <h1>Confirmar Cambio de Correo</h1>
+        </td>
+      </tr>
+      <!-- Content Section -->
+      <tr>
+        <td class="content">
+          <h2>Confirmar Cambio de Correo</h2>
+          <p>
+            Sigue este enlace para confirmar la actualización de tu correo electrónico 
+            de {{ .Email }} a {{ .NewEmail }}:
+          </p>
+          <p>
+            <a href="{{ .ConfirmationURL }}">Cambiar Correo</a>
+          </p>
+        </td>
+      </tr>
+      <!-- Footer Section -->
+      <tr>
+        <td class="footer">
+          <p>Si tienes alguna pregunta, por favor contacta a nuestro equipo de soporte.</p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+

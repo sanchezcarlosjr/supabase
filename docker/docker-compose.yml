@@ -63,13 +63,17 @@ services:
       KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
       # https://github.com/supabase/cli/issues/14
       KONG_DNS_ORDER: LAST,A,CNAME
-      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth,ip-restriction,bot-detection
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth,response-transformer,rate-limiting,ip-restriction,bot-detection
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
       KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
       DASHBOARD_USERNAME: ${DASHBOARD_USERNAME}
       DASHBOARD_PASSWORD: ${DASHBOARD_PASSWORD}
+      SUPERADMIN_ALLOWED_IP_1: ${SUPERADMIN_ALLOWED_IP_1}
+      SUPERADMIN_ALLOWED_IP_2: ${SUPERADMIN_ALLOWED_IP_2}
+      SUPERADMIN_ALLOWED_IP_3: ${SUPERADMIN_ALLOWED_IP_3}
+      KONG_HEADERS: off
       KONG_SSL_CERT: /etc/kong/ssl/primary.crt
       KONG_SSL_CERT_KEY: /etc/kong/ssl/primary.key
     volumes:
@@ -142,9 +146,9 @@ services:
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
       # Uncomment to enable custom access token hook. Please see: https://supabase.com/docs/guides/auth/auth-hooks for full list of hooks and additional details about custom_access_token_hook
 
-      # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED: "true"
-      # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_URI: "pg-functions://postgres/public/custom_access_token_hook"
-      # GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_SECRETS: "<standard-base64-secret>"
+      GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED: "true"
+      GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_URI: "pg-functions://postgres/app/access_token_hook"
+      #GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_SECRETS: "<standard-base64-secret>"
 
       # GOTRUE_HOOK_MFA_VERIFICATION_ATTEMPT_ENABLED: "true"
       # GOTRUE_HOOK_MFA_VERIFICATION_ATTEMPT_URI: "pg-functions://postgres/public/mfa_verification_attempt"
@@ -372,7 +376,7 @@ services:
   # Comment out everything below this point if you are using an external Postgres database
   db:
     container_name: supabase-db
-    image: supabase/postgres:15.6.1.146
+    image: supabase/postgres:15.8.1.021
     healthcheck:
       test: pg_isready -U postgres -h localhost
       interval: 5s

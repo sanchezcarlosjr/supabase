@@ -1,5 +1,5 @@
 \set jwt_secret `echo "$JWT_SECRET"`
 \set jwt_exp `echo "$JWT_EXP"`
 
-ALTER DATABASE postgres SET "app.settings.jwt_secret" TO :'jwt_secret';
-ALTER DATABASE postgres SET "app.settings.jwt_exp" TO :'jwt_exp';
+select vault.create_secret(:'jwt_secret', 'app.jwt_secret', 'The jwt secret');
+select vault.create_secret(:'jwt_exp', 'app.jwt_exp', 'jwt expiration');

@@ -1,6 +1,9 @@
----
-_format_version: "2.1"
+_format_version: '2.1'
 _transform: true
+
+###
+### Consumers / Users
+###
 consumers:
   - username: DASHBOARD
   - username: anon
@@ -9,16 +12,29 @@ consumers:
   - username: service_role
     keyauth_credentials:
       - key: $SUPABASE_SERVICE_KEY
+
+###
+### Access Control List
+###
 acls:
   - consumer: anon
     group: anon
   - consumer: service_role
     group: admin
+
+###
+### Dashboard credentials
+###
 basicauth_credentials:
   - consumer: DASHBOARD
     username: $DASHBOARD_USERNAME
     password: $DASHBOARD_PASSWORD
+
+
+### API Routes
+###
 services:
+  ## Open Auth routes
   - name: auth-v1-open
     url: http://auth:9999/verify
     routes:
@@ -46,8 +62,10 @@ services:
           - /auth/v1/authorize
     plugins:
       - name: cors
+
+  ## Secure Auth routes
   - name: auth-v1
-    _comment: "GoTrue: /auth/v1/* -> http://auth:9999/*"
+    _comment: 'GoTrue: /auth/v1/* -> http://auth:9999/*'
     url: http://auth:9999/
     routes:
       - name: auth-v1-all
@@ -55,6 +73,11 @@ services:
         paths:
           - /auth/v1/
     plugins:
+      - name: rate-limiting
+        config:
+          second: 30
+          hour: 10000
+          policy: local
       - name: cors
       - name: key-auth
         config:
@@ -65,8 +88,10 @@ services:
           allow:
             - admin
             - anon
+
+  ## Secure REST routes
   - name: rest-v1
-    _comment: "PostgREST: /rest/v1/* -> http://rest:3000/*"
+    _comment: 'PostgREST: /rest/v1/* -> http://rest:3000/*'
     url: http://rest:3000/
     routes:
       - name: rest-v1-all
@@ -74,7 +99,21 @@ services:
         paths:
           - /rest/v1/
     plugins:
-      - name: cors
+      - name: bot-detection
+      - name: response-transformer 
+        config:
+          replace:
+             json:
+               - details:Bad request
+               - code:C400
+               - message:Your request has failed because the required data could not be fulfilled. Please check your query or request body.
+          remove:
+             headers: ['Server', 'Via', "server", "via"]
+      - name: rate-limiting
+        config:
+          second: 15
+          hour: 10000
+          policy: local
       - name: key-auth
         config:
           hide_credentials: true
@@ -84,8 +123,10 @@ services:
           allow:
             - admin
             - anon
+
+  ## Secure Realtime routes
   - name: realtime-v1-ws
-    _comment: "Realtime: /realtime/v1/* -> ws://realtime:4000/socket/*"
+    _comment: 'Realtime: /realtime/v1/* -> ws://realtime:4000/socket/*'
     url: http://realtime-dev.supabase-realtime:4000/socket
     protocol: ws
     routes:
@@ -105,7 +146,7 @@ services:
             - admin
             - anon
   - name: realtime-v1-rest
-    _comment: "Realtime: /realtime/v1/* -> ws://realtime:4000/socket/*"
+    _comment: 'Realtime: /realtime/v1/* -> ws://realtime:4000/socket/*'
     url: http://realtime-dev.supabase-realtime:4000/api
     protocol: http
     routes:
@@ -114,6 +155,11 @@ services:
         paths:
           - /realtime/v1/api
     plugins:
+      - name: rate-limiting
+        config:
+          second: 30
+          hour: 10000
+          policy: local
       - name: cors
       - name: key-auth
         config:
@@ -124,8 +170,9 @@ services:
           allow:
             - admin
             - anon
+  ## Storage routes: the storage server manages its own auth
   - name: storage-v1
-    _comment: "Storage: /storage/v1/* -> http://storage:5000/*"
+    _comment: 'Storage: /storage/v1/* -> http://storage:5000/*'
     url: http://storage:5000/
     routes:
       - name: storage-v1-all
@@ -133,9 +180,21 @@ services:
         paths:
           - /storage/v1/
     plugins:
+      - name: bot-detection
+      - name: response-transformer 
+        config:
+          remove:
+             headers: ['Server', 'Via']
+      - name: rate-limiting
+        config:
+          second: 30
+          hour: 10000
+          policy: local
       - name: cors
+
+  ## Edge Functions routes
   - name: functions-v1
-    _comment: "Edge Functions: /functions/v1/* -> http://functions:9000/*"
+    _comment: 'Edge Functions: /functions/v1/* -> http://functions:9000/*'
     url: http://functions:9000/
     routes:
       - name: functions-v1-all
@@ -143,17 +202,52 @@ services:
         paths:
           - /functions/v1/
     plugins:
+      - name: rate-limiting
+        config:
+          second: 30
+          hour: 10000
+          policy: local
       - name: cors
+
+  ## Analytics routes
   - name: analytics-v1
-    _comment: "Analytics: /analytics/v1/* -> http://logflare:4000/*"
+    _comment: 'Analytics: /analytics/v1/* -> http://logflare:4000/*'
     url: http://analytics:4000/
     routes:
       - name: analytics-v1-all
         strip_path: true
         paths:
           - /analytics/v1/
+    plugins:
+      - name: bot-detection
+      - name: ip-restriction
+        config:
+          allow:
+            - 172.19.0.0/16
+
+#   - name: emailengine
+#   _comment: 'EmailEngine: /email-engine/* -> http://emailengine:3000/*'
+#   url: http://emailengine:3000/
+#   routes:
+#    - name: emailengine-all
+#      strip_path: true
+#      paths:
+#        - /
+#    plugins:
+#      - name: bot-detection
+#      - name: ip-restriction
+#        config:
+#          allow:
+#            - $SUPERADMIN_ALLOWED_IP_1
+#      - name: rate-limiting
+#        config:
+#          second: 1000
+#          hour: 10000
+#          policy: local
+
+  ## Secure Database routes
   - name: meta
-    _comment: "pg-meta: /pg/* -> http://pg-meta:8080/*"
+    _comment: 'pg-meta: /pg/* -> http://pg-meta:8080/*'
     url: http://meta:8080/
     routes:
       - name: meta-all
@@ -161,13 +255,22 @@ services:
         paths:
           - /pg/
     plugins:
+      - name: bot-detection
       - name: ip-restriction
         config:
           allow:
             - $SUPERADMIN_ALLOWED_IP_1
             - $SUPERADMIN_ALLOWED_IP_2
             - $SUPERADMIN_ALLOWED_IP_3
-            - $SUPERADMIN_ALLOWED_IP_4
+      - name: response-transformer
+        config:
+          remove:
+            headers: ['Server', 'Via']
+      - name: rate-limiting
+        config:
+          second: 150
+          hour: 10000
+          policy: local
       - name: key-auth
         config:
           hide_credentials: false
@@ -176,8 +279,10 @@ services:
           hide_groups_header: true
           allow:
             - admin
+
+  ## Protected Dashboard - catch all remaining routes
   - name: dashboard
-    _comment: "Studio: /* -> http://studio:3000/*"
+    _comment: 'Studio: /* -> http://studio:3000/*'
     url: http://studio:3000/
     routes:
       - name: dashboard-all
@@ -185,14 +290,21 @@ services:
         paths:
           - /
     plugins:
+      - name: bot-detection
       - name: ip-restriction
         config:
           allow:
             - $SUPERADMIN_ALLOWED_IP_1
             - $SUPERADMIN_ALLOWED_IP_2
             - $SUPERADMIN_ALLOWED_IP_3
-            - $SUPERADMIN_ALLOWED_IP_4
+      - name: rate-limiting
+        config:
+          second: 1000
+          hour: 10000
+          policy: local
       - name: cors
       - name: basic-auth
         config:
           hide_credentials: true
+
+
