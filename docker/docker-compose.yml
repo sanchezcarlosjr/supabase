@@ -144,6 +144,12 @@ services:
 
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
+      
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${ENABLE_GOOGLE_SIGNUP}
+      GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOTRUE_EXTERNAL_GOOGLE_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL}/auth/v1/callback
+
       # Uncomment to enable custom access token hook. Please see: https://supabase.com/docs/guides/auth/auth-hooks for full list of hooks and additional details about custom_access_token_hook
 
       GOTRUE_HOOK_CUSTOM_ACCESS_TOKEN_ENABLED: "true"
@@ -403,13 +409,14 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXP: ${JWT_EXPIRY}
     volumes:
+      # Must be superuser to create event trigger
       - ./volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
       # Must be superuser to create event trigger
       - ./volumes/db/webhooks.sql:/docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql:Z
       # Must be superuser to alter reserved role
       - ./volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
       # Initialize the database settings with JWT_SECRET and JWT_EXP
-      - ./volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:Z
+      - ./volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/101-jwt.sql:Z
       # PGDATA directory is persisted between restarts
       - ./volumes/db/data:/var/lib/postgresql/data:Z
       # Changes required for internal supabase data such as _analytics
@@ -535,6 +542,35 @@ services:
       - ./volumes/html:/usr/share/nginx/html:ro
     networks:
       - default
+
+  directus:
+    image: directus/directus:11.3.5
+    depends_on:
+      - db
+    volumes:
+      - ./volumes/directus/database:/directus/database
+      - ./volumes/directus/uploads:/directus/uploads
+      - ./volumes/directus/extensions:/directus/extensions
+    environment:
+      SECRET: ${JWT_SECRET}
+      ADMIN_EMAIL: ${DASHBOARD_USERNAME}
+      ADMIN_PASSWORD: ${DASHBOARD_PASSWORD}
+      DB_CLIENT: "pg"
+      DB_HOST: ${POSTGRES_HOST}
+      DB_PORT: ${POSTGRES_PORT}
+      DB_USER: directus
+      DB_DATABASE: ${POSTGRES_DB} 
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_SEARCH_PATH: "array:cms,extensions,public,app"
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL}
+      EMAIL_FROM: ${SMTP_USER}
+      EMAIL_TRANSPORT: smtp
+      EMAIL_SMTP_HOST: ${SMTP_HOST}
+      EMAIL_SMTP_USER: ${SMTP_USER}
+      EMAIL_SMTP_PASSWORD: ${SMTP_PASS}
+      EMAIL_SMTP_SECURE: true
+      WEBSOCKETS_ENABLED: "true"
+      TELEMETRY: "false"
 
 
 networks:

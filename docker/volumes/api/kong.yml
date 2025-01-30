@@ -220,32 +220,134 @@ services:
           - /analytics/v1/
     plugins:
       - name: bot-detection
+      - name: response-transformer
+        config:
+          remove:
+            headers: ['Server', 'Via']  
       - name: ip-restriction
         config:
           allow:
             - 172.19.0.0/16
 
-#   - name: emailengine
-#   _comment: 'EmailEngine: /email-engine/* -> http://emailengine:3000/*'
-#   url: http://emailengine:3000/
-#   routes:
-#    - name: emailengine-all
-#      strip_path: true
-#      paths:
-#        - /
-#    plugins:
-#      - name: bot-detection
-#      - name: ip-restriction
-#        config:
-#          allow:
-#            - $SUPERADMIN_ALLOWED_IP_1
-#      - name: rate-limiting
-#        config:
-#          second: 1000
-#          hour: 10000
-#          policy: local
+  ## Email routes
+  - name: emailengine-static
+    url: http://emailengine:3000/
+    routes:
+      - name: emailengine-accounts-route
+        paths:
+          - /accounts
+        strip_path: false
+    plugins:
+      - name: bot-detection
+      - name: response-transformer
+        config:
+          remove:
+            headers: ['Server', 'Via']  
+      - name: ip-restriction
+        config:
+          allow:
+            - $SUPERADMIN_ALLOWED_IP_1
+      - name: rate-limiting
+        config:
+          second: 10
+          hour: 100
+          policy: local
+
+  - name: emailengine-static
+    url: http://emailengine:3000/
+    routes:
+      - name: emailengine-static-route
+        paths:
+          - /static
+        strip_path: false
+    plugins:
+      - name: bot-detection
+      - name: response-transformer
+        config:
+          remove:
+            headers: ['Server', 'Via']
+      - name: ip-restriction
+        config:
+          allow:
+            - $SUPERADMIN_ALLOWED_IP_1
+      - name: rate-limiting
+        config:
+          second: 100
+          hour: 10000
+          policy: local
+
+  - name: emailengine-admin
+    url: http://emailengine:3000/
+    routes:
+      - name: emailengine-admin-route
+        paths:
+          - /admin
+        strip_path: false
+    plugins:
+      - name: bot-detection
+      - name: response-transformer
+        config:
+          remove:
+            headers: ['Server', 'Via']
+      - name: ip-restriction
+        config:
+          allow:
+            - $SUPERADMIN_ALLOWED_IP_1
+      - name: rate-limiting
+        config:
+          second: 1000
+          hour: 10000
+          policy: local
+
+  - name: emailengine
+    _comment: 'EmailEngine: /email-engine/* -> http://emailengine:3000/*'
+    url: http://emailengine:3000/
+    routes:
+      - name: emailengine-all
+        strip_path: true
+        paths:
+          - /emailengine
+    plugins:
+      - name: bot-detection
+      - name: response-transformer
+        config:
+          remove:
+            headers: ['Server', 'Via']
+      - name: ip-restriction
+        config:
+          allow:
+            - $SUPERADMIN_ALLOWED_IP_1
+      - name: rate-limiting
+        config:
+          second: 10
+          hour: 10000
+          policy: local
 
   ## Secure Database routes
+  - name: CMS
+    _comment: 'Directus: /cms/* -> http://cms:8055/*'
+    url: http://directus:8055/
+    routes:
+      - name: cms-all
+        strip_path: true
+        paths:
+          - /cms/
+    plugins:
+      - name: bot-detection
+      - name: ip-restriction
+        config:
+          allow:
+            - $SUPERADMIN_ALLOWED_IP_1
+      - name: response-transformer
+        config:
+          remove:
+            headers: ['Server', 'Via']
+      - name: rate-limiting
+        config:
+          second: 150
+          hour: 10000
+          policy: local
+
   - name: meta
     _comment: 'pg-meta: /pg/* -> http://pg-meta:8080/*'
     url: http://meta:8080/
@@ -260,8 +362,6 @@ services:
         config:
           allow:
             - $SUPERADMIN_ALLOWED_IP_1
-            - $SUPERADMIN_ALLOWED_IP_2
-            - $SUPERADMIN_ALLOWED_IP_3
       - name: response-transformer
         config:
           remove:
@@ -295,8 +395,10 @@ services:
         config:
           allow:
             - $SUPERADMIN_ALLOWED_IP_1
-            - $SUPERADMIN_ALLOWED_IP_2
-            - $SUPERADMIN_ALLOWED_IP_3
+      - name: response-transformer
+        config:
+          remove:
+            headers: ['Server', 'Via']
       - name: rate-limiting
         config:
           second: 1000
@@ -306,5 +408,3 @@ services:
       - name: basic-auth
         config:
           hide_credentials: true
-
-
